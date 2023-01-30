@@ -14,7 +14,37 @@ import java.net.DatagramSocket;
 import java.net.InetAddress;
 
 public class MainActivity extends AppCompatActivity {
+    enum Cmd{
+        STOP("0000"),
+        FRONT("1111"),
+        BACK("2222"),
+        LEFT("3333"),
+        RIGHT("4444"),
+        LEFTFRONT("5555"),
+        LEFTBACK("6666"),
+        RIGHTFRONT("7777"),
+        RIGHTBACK("8888"),
+        LEFTROUND("leftround"),
+        RIGHTROUND("rightround"),
+        TURNLEFT("turnleft"),
+        TURNRIGHT("turnright"),
+        TURNUP("turnup"),
+        TURNDOWN("turndown"),
+        TURNSTOP("turnstop"),
+        LASERON("laseron"),
+        LASEROFF("laseroff"),
+        FIRE("fire");
 
+        private String cmd;
+
+        private Cmd(String cmd){
+            this.cmd = cmd;
+        }
+
+        public String getCmd(){
+            return cmd;
+        }
+    }
     private MjpegView view1;
     private DatagramSocket socket;
     private Button connectBtn;
@@ -53,7 +83,16 @@ public class MainActivity extends AppCompatActivity {
         joyStickView.setOnMoveListener(new JoyStickView.OnMoveListener() {
             @Override
             public void onMove(double angle, float strength) {
-                Log.i("stick","angle:"+angle+" strength:"+strength);
+                new Thread(new Runnable() {
+                    public void run() {
+
+                        String cmd = convertToDirectionCmd(angle, strength);
+                        Log.i("stick","angle:"+angle+" strength:"+strength+" cmd:"+cmd);
+                        sendMsg(cmd);
+
+                    }
+                }).start();
+
             }
         });
 
@@ -63,7 +102,14 @@ public class MainActivity extends AppCompatActivity {
         joyStickView2.setOnMoveListener(new JoyStickView.OnMoveListener() {
             @Override
             public void onMove(double angle, float strength) {
-                Log.i("stick","angle:"+angle+" strength:"+strength);
+                new Thread(new Runnable() {
+                    public void run() {
+
+                        Log.i("stick","angle:"+angle+" strength:"+strength);
+
+                    }
+                }).start();
+
             }
         });
 
@@ -143,6 +189,33 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
+    private String convertToDirectionCmd(double angle, float strength) {
+        String cmd = "" ;
+        float sector = 22.5f;
+        Log.i("stick","1:"+sector+ " 2:"+sector*11+" 3:"+sector*13);
+        if (strength < 20f){
+            cmd = Cmd.STOP.getCmd();
+        }else if ((angle>=0 && angle<sector) || (angle>=sector*15) && angle<=360){
+            cmd = Cmd.RIGHT.getCmd();
+        } else if (angle >=sector && angle < sector*3) {
+            cmd = Cmd.RIGHTFRONT.getCmd();
+        } else if (angle >= sector*3 && angle < sector*5) {
+            cmd = Cmd.FRONT.getCmd();
+        } else if (angle >= sector*5 && angle < sector*7) {
+            cmd = Cmd.LEFTFRONT.getCmd();
+        } else if (angle >= sector * 7 && angle< sector*9) {
+            cmd = Cmd.LEFT.getCmd();
+        } else if (angle >= sector*9 && angle < sector*11) {
+            cmd = Cmd.LEFTBACK.getCmd();
+        } else if (angle >= sector*11 && angle < sector*13) {
+            cmd = Cmd.BACK.getCmd();
+        } else if (angle >= sector*13 && angle < sector*15) {
+            cmd = Cmd.RIGHTBACK.getCmd();
+        }
+
+        return cmd;
+    }
+
     @Override
     protected void onResume() {
 //        view1.startStream();
@@ -187,5 +260,12 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+
+//    public static void main(String[] args) {
+//        MainActivity a = new MainActivity();
+//        float angle = 0.0f;
+//        float strenth = 0.0f;
+//        System.out.println(a.convertToDirectionCmd(angle, strenth));
+//    }
 
 }
