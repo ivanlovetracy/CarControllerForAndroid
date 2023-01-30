@@ -87,7 +87,7 @@ public class MainActivity extends AppCompatActivity {
                     public void run() {
 
                         String cmd = convertToDirectionCmd(angle, strength);
-                        Log.i("stick","angle:"+angle+" strength:"+strength+" cmd:"+cmd);
+                        Log.i("stick","[directorn] angle:"+angle+" strength:"+strength+" cmd:"+cmd);
                         sendMsg(cmd);
 
                     }
@@ -104,9 +104,9 @@ public class MainActivity extends AppCompatActivity {
             public void onMove(double angle, float strength) {
                 new Thread(new Runnable() {
                     public void run() {
-
-                        Log.i("stick","angle:"+angle+" strength:"+strength);
-
+                        String cmd = convertToTurnCmd(angle,strength);
+                        Log.i("stick","[turn] angle:"+angle+" strength:"+strength+" cmd:"+cmd);
+                        sendMsg(cmd);
                     }
                 }).start();
 
@@ -189,10 +189,27 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
+    private String convertToTurnCmd(double angle, float strength) {
+        String cmd = "";
+        float sector = 45f;
+        if (strength < 20f){
+            cmd = Cmd.TURNSTOP.getCmd();
+        } else if ((angle>=0 && angle<sector) || (angle>=sector*7 && angle<=360)) {
+            cmd = Cmd.TURNRIGHT.getCmd();
+        } else if (angle>=sector && angle < sector*3) {
+            cmd = Cmd.TURNUP.getCmd();
+        } else if (angle>=sector*3 && angle<sector*5) {
+            cmd = Cmd.TURNLEFT.getCmd();
+        } else if (angle>=sector*5 && angle<sector*7) {
+            cmd = Cmd.TURNDOWN.getCmd();
+        }
+
+        return cmd;
+    }
+
     private String convertToDirectionCmd(double angle, float strength) {
         String cmd = "" ;
         float sector = 22.5f;
-        Log.i("stick","1:"+sector+ " 2:"+sector*11+" 3:"+sector*13);
         if (strength < 20f){
             cmd = Cmd.STOP.getCmd();
         }else if ((angle>=0 && angle<sector) || (angle>=sector*15) && angle<=360){
