@@ -1,5 +1,6 @@
-package com.example.myapplication;
+package com.example.carcontroller;
 
+import android.content.pm.ActivityInfo;
 import android.graphics.Color;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
@@ -8,6 +9,7 @@ import android.view.View;
 import android.view.Window;
 import android.widget.Button;
 import android.widget.EditText;
+
 
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
@@ -59,6 +61,7 @@ public class MainActivity extends AppCompatActivity {
     private int cmdPort;
     private String mjpegUrl;
     private boolean ismjpegOn = false;
+    private boolean isLaserOn = false;
 
 
     @Override
@@ -115,12 +118,12 @@ public class MainActivity extends AppCompatActivity {
 
         view1 = findViewById(R.id.mjpegview1);
         view1.setAdjustHeight(true);
+        view1.setMode(MjpegView.MODE_FIT_HEIGHT);
 //        view1.setAdjustWidth(true);
 //        view1.setMode(MjpegView.MODE_FIT_WIDTH);
-        view1.setMode(MjpegView.MODE_FIT_HEIGHT);
-        //view.setMsecWaitAfterReadImageError(1000);
 
-//      view1.setRecycleBitmap(true);
+        view1.setMsecWaitAfterReadImageError(1000);
+        view1.setRecycleBitmap(true);
 
         connectBtn.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -166,9 +169,13 @@ public class MainActivity extends AppCompatActivity {
             public void onClick(View v) {
                 new Thread(new Runnable() {
                     public void run() {
+                        if (isLaserOn){
+                            sendMsg("laseroff");
+                        }else {
+                            sendMsg("laseron");
+                        }
 
-                        sendMsg("laserOn");
-
+                        isLaserOn = !isLaserOn;
                     }
                 }).start();
             }
@@ -235,6 +242,10 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onResume() {
+        if(getRequestedOrientation()!= ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE){
+            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
+        }
+
 //        view1.startStream();
 //        view2.startStream();
         super.onResume();

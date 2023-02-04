@@ -1,4 +1,4 @@
-package com.example.myapplication;
+package com.example.carcontroller;
 
 import android.app.Activity;
 import android.content.Context;
@@ -40,7 +40,7 @@ public class MjpegView extends View {
     private MjpegDownloader downloader;
     private Paint paint;
     private Rect dst;
-
+    private Rect lockRect;
     private int mode = MODE_ORIGINAL;
     private int drawX,drawY, vWidth = -1, vHeight = -1;
     private int lastImgWidth, lastImgHeight;
@@ -49,6 +49,8 @@ public class MjpegView extends View {
     private boolean isRecycleBitmap;
     private boolean isUserForceConfigRecycle;
     private boolean isSupportPinchZoomAndPan;
+    private float lockX1,lockY1,lockX2,lockY2;
+    private boolean isLocking = false;
 
     public MjpegView(Context context){
         super(context);
@@ -65,6 +67,7 @@ public class MjpegView extends View {
     private void init(){
         paint = new Paint(Paint.ANTI_ALIAS_FLAG);
         dst = new Rect(0,0,0,0);
+        lockRect = new Rect();
     }
 
     public void setUrl(String url){
@@ -245,6 +248,12 @@ public class MjpegView extends View {
                 } else {
                     c.drawBitmap(lastBitmap, drawX, drawY, paint);
                 }
+
+                if (isLocking){
+                    c.drawRect(lockRect,paint);
+                    isLocking = false;
+                }
+                
             } else {
                 Log.d(tag, "Skip drawing, canvas is null or bitmap is not ready yet");
             }
@@ -370,7 +379,27 @@ public class MjpegView extends View {
     @Override
     public boolean onTouchEvent(MotionEvent event) {
         if (!isSupportPinchZoomAndPan) {
-            return false;
+
+
+            int action = event.getAction();
+            if (action == MotionEvent.ACTION_DOWN){
+                stopStream();
+//                Log.i("mjpegview","stopStream because onTouch");
+                lockX1 = event.getX();
+                lockY1 = event.getY();
+                Log.i("mjpegview","x1,y1="+lockX1+","+lockY1);
+
+            } else if (action == MotionEvent.ACTION_MOVE) {
+                lockX2 = event.getX();
+                lockY2 = event.getY();
+                Log.i("mjpegview","x2,y2="+lockX2+","+lockY2);
+                lockRect.set((int) lockX1, (int) lockY1, (int) lockX2, (int) lockY2);
+                isLocking = true;
+                invalidate();
+            } else if (action == MotionEvent.ACTION_UP) {
+                startStream();
+            }
+//            return true;
         } else if(event.getPointerCount() == 1) {
             int id = event.getAction();
             if(id == MotionEvent.ACTION_DOWN){

@@ -1,4 +1,4 @@
-package com.example.myapplication;
+package com.example.carcontroller;
 
 import org.junit.Test;
 

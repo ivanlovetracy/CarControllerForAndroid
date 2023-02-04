@@ -1,4 +1,4 @@
-package com.example.myapplication;
+package com.example.carcontroller;
 
 import android.content.Context;
 import android.content.res.TypedArray;
@@ -10,6 +10,8 @@ import android.util.AttributeSet;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.FrameLayout;
+
+import com.example.carcontroller.R;
 
 public class JoyStickView extends FrameLayout implements InnerCircleView.OnSMallMoveListener {
 
