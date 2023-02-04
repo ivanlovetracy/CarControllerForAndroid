@@ -122,6 +122,8 @@ public class MjpegView extends View {
             downloader.cancel();
         }
 
+//        trackerRect = null;
+
     }
 
     public int getMode() {
@@ -536,6 +538,7 @@ public class MjpegView extends View {
             isTrackerOn = true;
         }else {
             isTrackerOn = false;
+            trackerRect = null;//停止追踪
         }
     }
 
@@ -668,7 +671,7 @@ public class MjpegView extends View {
                                                 Mat mat = new Mat();
                                                 Utils.bitmapToMat(outputImg, oriMat);
 //                                            Log.i("OpenCV", "mat channels:" + mat.channels() + ", cols:" + mat.cols() + ", rows:" + mat.rows());
-
+//                                                esp32摄像头是BGR，需要转换位为RGB才能用于opencv tracker
                                                 Imgproc.cvtColor(oriMat, mat, Imgproc.COLOR_BGR2RGB);
 //                                            Log.i("OpenCV", "mat channels:" + mat.channels() + ", cols:" + mat.cols() + ", rows:" + mat.rows());
 
@@ -681,9 +684,10 @@ public class MjpegView extends View {
                                                 lockImgY2 = lockImgY1 + trackerRect.height;
 //                                            用opencv直接把矩形框画到图像中，不需要额外绘制
 //                                            lockRect.set((int) (lockImgX1/widthRate), (int) (lockImgY1/heightRate), (int) (lockImgX2/widthRate), (int) (lockImgY2/heightRate));
-                                                Imgproc.rectangle(mat,new Point(lockImgX1,lockImgY1),new Point(lockImgX2,lockImgY2),new Scalar(255,0,0,255),1,Imgproc.LINE_4,0);
+                                                Imgproc.rectangle(oriMat,new Point(lockImgX1,lockImgY1),new Point(lockImgX2,lockImgY2),new Scalar(255,0,0,255),1,Imgproc.LINE_4,0);
                                                 Log.i("mjpeg","update lockRect:"+lockRect.toString());
-                                                Utils.matToBitmap(mat, outputImg);
+//                                                mat经过转化，图像颜色有失真，用没转换过的oriMat来显示，mat仅用来给tracker追踪
+                                                Utils.matToBitmap(oriMat, outputImg);
                                             }catch (Exception e){
                                                 e.printStackTrace();
                                                 Log.i("opencv",e.toString());
