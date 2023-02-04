@@ -15,6 +15,7 @@ import android.widget.Switch;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
+import java.net.SocketException;
 
 public class MainActivity extends AppCompatActivity {
     enum Cmd{
@@ -147,6 +148,15 @@ public class MainActivity extends AppCompatActivity {
                         ismjpegOn = true;
 
                         Log.i("stick","mjpegView start");
+                        try {
+                            socket = new DatagramSocket();
+                            view1.setSocket(socket);
+                        } catch (SocketException e) {
+                            Log.e("mjpeg",e.toString());
+                        }
+                        view1.setServerIp(serverIp);
+                        view1.setCmdPort(cmdPort);
+
                         sendMsg("0000");
 
                     }

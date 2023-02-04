@@ -24,7 +24,10 @@ import org.opencv.osgi.OpenCVNativeLoader;
 import org.opencv.tracking.TrackerCSRT;
 
 import java.io.BufferedInputStream;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
 import java.net.HttpURLConnection;
+import java.net.InetAddress;
 import java.net.URL;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -63,10 +66,27 @@ public class MjpegView extends View {
     private boolean isTrackerOn = false;
     private Paint rectPaint;
     private TrackerCSRT tracker = null;
+    private float imgWidth, imgHeight;//实际图像中心点坐标
+
     private float widthRate = 0.0F;
     private float heightRate = 0.0F;
     private int lockImgX1, lockImgY1, lockImgX2, lockImgY2;//实际图片的四个顶点坐标（取证）
     private org.opencv.core.Rect trackerRect;
+    private DatagramSocket socket;
+    private String serverIp;
+
+    public void setSocket(DatagramSocket socket) {
+        this.socket = socket;
+    }
+    public void setServerIp(String serverIp) {
+        this.serverIp = serverIp;
+    }
+
+    public void setCmdPort(int cmdPort) {
+        this.cmdPort = cmdPort;
+    }
+
+    private int cmdPort;
 
     public MjpegView(Context context){
         super(context);
@@ -655,8 +675,11 @@ public class MjpegView extends View {
 //                                        如果开启追踪，进行追踪处理
 
 //                                        使用view大小的图像缩放比例
-                                        widthRate = (float)outputImg.getWidth()/vWidth;
-                                        heightRate = (float)outputImg.getHeight()/vHeight;
+                                        imgWidth = outputImg.getWidth();
+                                        imgHeight = outputImg.getHeight();
+
+                                        widthRate = (float) imgWidth /vWidth;
+                                        heightRate = (float) imgHeight /vHeight;
 
                                         Log.i("mjpeg","img rate:"+widthRate+","+heightRate);
 //                                    Log.i("mjpeg","width height:"+outputImg.getWidth()+ " " + outputImg.getHeight());
@@ -682,6 +705,9 @@ public class MjpegView extends View {
                                                 lockImgY1 = trackerRect.y;
                                                 lockImgX2 = lockImgX1 + trackerRect.width;
                                                 lockImgY2 = lockImgY1 + trackerRect.height;
+
+                                                sendTrackTargetCmd(lockImgX1,lockImgY1,lockImgX2,lockImgY2,imgWidth/2,imgHeight/2);
+
 //                                            用opencv直接把矩形框画到图像中，不需要额外绘制
 //                                            lockRect.set((int) (lockImgX1/widthRate), (int) (lockImgY1/heightRate), (int) (lockImgX2/widthRate), (int) (lockImgY2/heightRate));
                                                 Imgproc.rectangle(oriMat,new Point(lockImgX1,lockImgY1),new Point(lockImgX2,lockImgY2),new Scalar(255,0,0,255),1,Imgproc.LINE_4,0);
@@ -759,6 +785,48 @@ public class MjpegView extends View {
 
         private void newFrame(Bitmap bitmap){
             setBitmap(bitmap);
+        }
+    }
+
+    private void sendTrackTargetCmd(int lockImgX1, int lockImgY1, int lockImgX2, int lockImgY2, float centerX, float centerY) {
+        float targetCenterX = ((float)(lockImgX1+lockImgX2)) / 2 ;
+        float targetCenterY = ((float)(lockImgY1+lockImgY2)) / 2 ;
+        int offset = 10;//误差接受范围
+
+        if ((targetCenterX - offset) > centerX){
+//            目标偏右,炮台右转
+            sendMsg("turnright");
+        } else if ((targetCenterX + offset) < centerX) {
+//            目标偏左，炮台左转
+            sendMsg("turnleft");
+        }
+
+        if ((targetCenterY - offset) > centerY){
+//            目标偏下
+            sendMsg("turndown");
+        } else if ((targetCenterY + offset) < centerY) {
+//            目标偏上
+            sendMsg("turnup");
+        }
+
+    }
+
+    public void sendMsg(String msg) {
+        try {
+            if (socket == null) {
+                // 20020是本机的端口号
+                socket = new DatagramSocket();
+            }
+            //将字符串转换成字节流，因为底层的传输都是字节传输
+            byte data[] = msg.getBytes();
+            // 对方的IP和端口号
+            DatagramPacket pack = new DatagramPacket(data, data.length, InetAddress.getByName(serverIp), cmdPort); // 创建DatagramPacket 对象数据包，这里的port是我们要发送信息主机的端口号
+            Log.v("stick", "发送"+serverIp+":"+cmdPort+"--"+msg);
+            socket.send(pack);
+            Log.v("stick", "发送成功！");
+        } catch (Exception e) {
+            Log.v("stick", "发送失败！");
+            e.printStackTrace();
         }
     }
 }
