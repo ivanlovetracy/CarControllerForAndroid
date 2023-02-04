@@ -5,6 +5,7 @@ import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
+import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.PointF;
 import android.graphics.Rect;
@@ -13,6 +14,14 @@ import android.util.Log;
 import android.view.MotionEvent;
 import android.view.ScaleGestureDetector;
 import android.view.View;
+
+import org.opencv.android.Utils;
+import org.opencv.core.Mat;
+import org.opencv.core.Point;
+import org.opencv.core.Scalar;
+import org.opencv.imgproc.Imgproc;
+import org.opencv.osgi.OpenCVNativeLoader;
+import org.opencv.tracking.TrackerCSRT;
 
 import java.io.BufferedInputStream;
 import java.net.HttpURLConnection;
@@ -49,8 +58,15 @@ public class MjpegView extends View {
     private boolean isRecycleBitmap;
     private boolean isUserForceConfigRecycle;
     private boolean isSupportPinchZoomAndPan;
-    private float lockX1,lockY1,lockX2,lockY2;
+    private float lockX1,lockY1,lockX2,lockY2;//适配view后的图像的四个顶点坐标（float）
     private boolean isLocking = false;
+    private boolean isTrackerOn = false;
+    private Paint rectPaint;
+    private TrackerCSRT tracker = null;
+    private float widthRate = 0.0F;
+    private float heightRate = 0.0F;
+    private int lockImgX1, lockImgY1, lockImgX2, lockImgY2;//实际图片的四个顶点坐标（取证）
+    private org.opencv.core.Rect trackerRect;
 
     public MjpegView(Context context){
         super(context);
@@ -65,9 +81,25 @@ public class MjpegView extends View {
     }
 
     private void init(){
+//        mjpeg图像paint
         paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+
+//        追踪目标选择矩形框paint
+        rectPaint = new Paint();
+        rectPaint.setColor(Color.rgb(255, 0, 0));
+        rectPaint.setStrokeWidth(5);
+        rectPaint.setStyle(Paint.Style.STROKE);
+
         dst = new Rect(0,0,0,0);
+
+//        追踪目标矩形框
         lockRect = new Rect();
+
+//        加载opencv库并初始化trackerCSRT追踪器
+        OpenCVNativeLoader openCVNativeLoader = new OpenCVNativeLoader();
+        openCVNativeLoader.init();
+        tracker = TrackerCSRT.create();
+
     }
 
     public void setUrl(String url){
@@ -85,7 +117,11 @@ public class MjpegView extends View {
     }
 
     public void stopStream(){
-        downloader.cancel();
+
+        if(downloader != null && downloader.isRunning()) {
+            downloader.cancel();
+        }
+
     }
 
     public int getMode() {
@@ -249,8 +285,9 @@ public class MjpegView extends View {
                     c.drawBitmap(lastBitmap, drawX, drawY, paint);
                 }
 
-                if (isLocking){
-                    c.drawRect(lockRect,paint);
+//                启用追踪且在选定目标时，绘制目标选择框
+                if (isTrackerOn && isLocking){
+                    c.drawRect(lockRect,rectPaint);
                     isLocking = false;
                 }
                 
@@ -379,24 +416,79 @@ public class MjpegView extends View {
     @Override
     public boolean onTouchEvent(MotionEvent event) {
         if (!isSupportPinchZoomAndPan) {
+//            没有开启追踪时，不做处理，直接返回
+            if (!isTrackerOn){
+                return false;
+            }
 
+//            开启了追踪时
+            Log.i("mjpeg","lastBitmap w h:"+lastImgWidth+", "+lastImgHeight);
 
             int action = event.getAction();
             if (action == MotionEvent.ACTION_DOWN){
+
+//                选择追踪目标期间，停止获取图像流，在点击屏幕图像时最后获取到的图像作为选取目标源
                 stopStream();
-//                Log.i("mjpegview","stopStream because onTouch");
+                Log.i("mjpegview","stopStream because onTouch to select tracking target");
                 lockX1 = event.getX();
                 lockY1 = event.getY();
-                Log.i("mjpegview","x1,y1="+lockX1+","+lockY1);
+
+//                屏幕上的图像经过了放大适配屏幕，需要按比例还原在原图像中的坐标
+                lockImgX1 = (int)((float)lockX1*widthRate);
+                lockImgY1 = (int)((float)lockY1*heightRate);
+
+                Log.i("mjpegview","x1,y1="+lockX1+","+lockY1+" rect x1,y1="+ lockImgX1 +","+lockImgY1);
 
             } else if (action == MotionEvent.ACTION_MOVE) {
+                Log.i("opencv","target is selected");
                 lockX2 = event.getX();
                 lockY2 = event.getY();
-                Log.i("mjpegview","x2,y2="+lockX2+","+lockY2);
+
+//                屏幕上的图像经过了放大适配屏幕，需要按比例还原在原图像中的坐标
+                lockImgX2 = (int)((float)lockX2*widthRate);
+                lockImgY2 = (int)((float)lockY2*heightRate);
+
+                Log.i("mjpegview","x2,y2="+lockX2+","+ lockY2 +" lock x2,y2="+ lockImgX2 +","+ lockImgY2);
+
+//                设置目标选择框矩形，用于绘制
                 lockRect.set((int) lockX1, (int) lockY1, (int) lockX2, (int) lockY2);
+                Log.i("mjpeg","init lockRect:"+lockRect.toString());
+
+//                标识正在选择目标中，ondraw会根据此标识来绘制目标选择框
                 isLocking = true;
+
                 invalidate();
+
             } else if (action == MotionEvent.ACTION_UP) {
+                if (tracker == null) {
+                    tracker = TrackerCSRT.create();
+                }else if(lastBitmap != null) {
+                    try {
+                        Log.i("mjpeg", "lastBitmap is " + lastBitmap.getWidth() + " " + lastBitmap.getHeight());
+
+                        //                        用屏幕选取出来的目标区域来构建出原图目标追踪框矩形
+                        trackerRect = new org.opencv.core.Rect(lockImgX1, lockImgY1, lockImgX2 - lockImgX1, lockImgY2 - lockImgY1);
+                        Log.i("opencv", "init trackerRect:" + trackerRect.toString());
+                        Mat oriMat = new Mat();
+                        Mat mat = new Mat();
+                        Utils.bitmapToMat(lastBitmap, oriMat);
+//                    Log.i("opencv","mat type:"+mat.type()+" mat channels:"+mat.channels()+" oriMat type:"+oriMat.type()+" oriMat channels:"+oriMat.type());
+
+//                        esp32的图像是BGR的，需要转化为RGB opencv才能追踪
+                        Imgproc.cvtColor(oriMat, mat, Imgproc.COLOR_BGR2RGB);
+                        Log.i("opencv", "tracker init mat type:" + mat.type() + " mat channels:" + mat.channels() + " oriMat type:" + oriMat.type() + " oriMat channels:" + oriMat.type());
+
+//                        初始化追踪器
+                        tracker.init(mat, trackerRect);
+
+                    }catch (Exception e){
+                        Log.i("opencv","tracker init exception");
+                        Log.i("opencv",e.toString());
+                    }
+
+                }
+
+//                重新开始获取图像流
                 startStream();
             }
 //            return true;
@@ -436,6 +528,15 @@ public class MjpegView extends View {
         }
 
         return true;
+    }
+
+    public void setTrackerOn(boolean b) {
+        Log.i("mjpeg","setTrackerOn"+b);
+        if (b){
+            isTrackerOn = true;
+        }else {
+            isTrackerOn = false;
+        }
     }
 
     class MjpegDownloader extends Thread{
@@ -546,6 +647,51 @@ public class MjpegView extends View {
 
                                 Bitmap outputImg = BitmapFactory.decodeByteArray(currentImageBody, 0, currentImageBodyLength);
                                 if (outputImg != null) {
+
+                                    if (isTrackerOn){
+//                                        如果开启追踪，进行追踪处理
+
+//                                        使用view大小的图像缩放比例
+                                        widthRate = (float)outputImg.getWidth()/vWidth;
+                                        heightRate = (float)outputImg.getHeight()/vHeight;
+
+                                        Log.i("mjpeg","img rate:"+widthRate+","+heightRate);
+//                                    Log.i("mjpeg","width height:"+outputImg.getWidth()+ " " + outputImg.getHeight());
+                                        if (tracker!=null && trackerRect != null) {
+                                            try {
+                                                Log.i("opencv","update tracker");
+                                                //追踪代码
+//                                            buffer = ByteBuffer.allocateDirect(outputImg.getByteCount());
+//                                            outputImg.copyPixelsToBuffer(buffer);
+//                                            Mat mat = new Mat(outputImg.getHeight(), outputImg.getWidth(), CvType.CV_8UC4, buffer);
+                                                Mat oriMat = new Mat();
+                                                Mat mat = new Mat();
+                                                Utils.bitmapToMat(outputImg, oriMat);
+//                                            Log.i("OpenCV", "mat channels:" + mat.channels() + ", cols:" + mat.cols() + ", rows:" + mat.rows());
+
+                                                Imgproc.cvtColor(oriMat, mat, Imgproc.COLOR_BGR2RGB);
+//                                            Log.i("OpenCV", "mat channels:" + mat.channels() + ", cols:" + mat.cols() + ", rows:" + mat.rows());
+
+                                                org.opencv.core.Rect updateRect = new org.opencv.core.Rect(0,0,50,50);
+                                                tracker.update(mat, trackerRect);
+                                                Log.i("opencv","update trackerRect:"+trackerRect.toString());
+                                                lockImgX1 = trackerRect.x;
+                                                lockImgY1 = trackerRect.y;
+                                                lockImgX2 = lockImgX1 + trackerRect.width;
+                                                lockImgY2 = lockImgY1 + trackerRect.height;
+//                                            用opencv直接把矩形框画到图像中，不需要额外绘制
+//                                            lockRect.set((int) (lockImgX1/widthRate), (int) (lockImgY1/heightRate), (int) (lockImgX2/widthRate), (int) (lockImgY2/heightRate));
+                                                Imgproc.rectangle(mat,new Point(lockImgX1,lockImgY1),new Point(lockImgX2,lockImgY2),new Scalar(255,0,0,255),1,Imgproc.LINE_4,0);
+                                                Log.i("mjpeg","update lockRect:"+lockRect.toString());
+                                                Utils.matToBitmap(mat, outputImg);
+                                            }catch (Exception e){
+                                                e.printStackTrace();
+                                                Log.i("opencv",e.toString());
+                                            }
+
+                                        }
+                                    }
+
                                     if(run) {
                                         newFrame(outputImg);
                                     }

@@ -62,7 +62,7 @@
         android:background="@android:drawable/editbox_background"
         android:ems="8"
         android:inputType="text"
-        android:text="192.168.1.15"
+        android:text="192.168.3.20"
         android:textSize="8sp"
         tools:layout_above="@id/mjpegview1" />
 
@@ -129,6 +129,14 @@
         android:layout_alignParentRight="true"
         android:layout_marginRight="30dp"
         android:text="射击" />
+
+    <Switch
+        android:id="@+id/tracker_switch"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/stopconnectbtn"
+        android:text="追踪"
+        android:textSize="8sp" />
 
 
 </RelativeLayout>

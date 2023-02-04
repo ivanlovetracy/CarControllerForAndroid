@@ -9,6 +9,7 @@ import android.view.View;
 import android.view.Window;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.Switch;
 
 
 import java.net.DatagramPacket;
@@ -51,6 +52,7 @@ public class MainActivity extends AppCompatActivity {
     private DatagramSocket socket;
     private Button connectBtn;
     private Button stopConnectBtn;
+    private Switch trackerSwitch;
     private Button laserBtn;
     private Button fireBtn;
     private EditText ipInupt;
@@ -74,11 +76,13 @@ public class MainActivity extends AppCompatActivity {
 
         connectBtn = (Button) findViewById(R.id.connectbtn);
         stopConnectBtn = (Button) findViewById(R.id.stopconnectbtn);
+        trackerSwitch = (Switch) findViewById(R.id.tracker_switch);
         laserBtn = (Button) findViewById(R.id.laserbtn);
         fireBtn = (Button) findViewById(R.id.firebtn);
         ipInupt = (EditText) findViewById(R.id.ipinput);
         cmdPortInput = (EditText) findViewById(R.id.cmdport);
         camPortInput = (EditText) findViewById(R.id.camport);
+
 
         JoyStickView joyStickView = findViewById(R.id.joy);
         joyStickView.setInnerCircleImageResId(R.drawable.ic_directions_run_black_24dp);
@@ -118,12 +122,12 @@ public class MainActivity extends AppCompatActivity {
 
         view1 = findViewById(R.id.mjpegview1);
         view1.setAdjustHeight(true);
-        view1.setMode(MjpegView.MODE_FIT_HEIGHT);
-//        view1.setAdjustWidth(true);
+        view1.setAdjustWidth(true);
+        view1.setMode(MjpegView.MODE_BEST_FIT);
 //        view1.setMode(MjpegView.MODE_FIT_WIDTH);
-
-        view1.setMsecWaitAfterReadImageError(1000);
-        view1.setRecycleBitmap(true);
+//        view1.setMode(MjpegView.MODE_FIT_HEIGHT);
+//        view1.setMsecWaitAfterReadImageError(1000);
+//        view1.setRecycleBitmap(true);
 
         connectBtn.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -163,6 +167,24 @@ public class MainActivity extends AppCompatActivity {
                 }).start();
             }
         });
+
+        trackerSwitch.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                new Thread(new Runnable() {
+                    public void run() {
+
+                        if (trackerSwitch.isChecked()){
+                            view1.setTrackerOn(true);
+                        }else {
+                            view1.setTrackerOn(false);
+                        }
+
+                    }
+                }).start();
+            }
+        });
+
 
         laserBtn.setOnClickListener(new View.OnClickListener() {
             @Override
